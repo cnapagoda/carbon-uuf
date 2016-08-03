@@ -16,48 +16,118 @@
 
 package org.wso2.carbon.uuf;
 
-import org.openjdk.jmh.annotations.Benchmark;
-import org.openjdk.jmh.annotations.Scope;
-import org.openjdk.jmh.annotations.State;
+import org.openjdk.jmh.annotations.*;
+import org.wso2.carbon.deployment.engine.Artifact;
+import org.wso2.carbon.deployment.engine.exception.CarbonDeploymentException;
+import org.wso2.carbon.uuf.api.ServerConnection;
+import org.wso2.carbon.uuf.renderablecreator.hbs.internal.HbsRenderableCreator;
+
 import org.wso2.carbon.uuf.internal.UUFServer;
+import org.wso2.carbon.uuf.internal.io.ArtifactAppDeployer;
 import org.wso2.carbon.uuf.spi.HttpRequest;
 import org.wso2.carbon.uuf.spi.HttpResponse;
-
+import org.wso2.carbon.uuf.spi.HttpConnector;
 
 import java.io.File;
 import java.io.InputStream;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 public class HttpRequestBenchmark {
 
-
+    /*
+    * Scope.Benchmark: All threads running the benchmark share the same state object.
+    */
     @State(Scope.Benchmark)
     public static class httpRequestState {
         UUFServer us = new UUFServer();
+        HttpConnector connector;
+        ServerConnection serverConnection;
+
+        /*
+        * Level.Trial :The method is called once for each time for each full run of the benchmark.
+        * A full run means a full "fork" including all warm-up and benchmark iterations.
+        */
+        @Setup(Level.Trial)
+        public void doSetup() {
+            connector = new HttpConnector() {
+                private ServerConnection serverConnection;
+
+                @Override
+                public void setServerConnection(ServerConnection serverConnection) {
+                    this.serverConnection = serverConnection;
+                }
+
+                @Override
+                public ServerConnection getServerConnection() {
+                    return serverConnection;
+                }
+
+/*                public void servePage() {
+                    HttpRequest request = genHttpRequest();
+                    HttpResponse response = genHttpResponse();
+                    us.setHttpConnector(connector);
+                    serverConnection = connector.getServerConnection();
+                    serverConnection.serve(request,response);
+                    //response.getContent();
+                }*/
+
+            };
+
+/*            System.setProperty("carbon.home","");
+            us.setHttpConnector(connector);
+            serverConnection = connector.getServerConnection();
+
+            ArtifactAppDeployer deployer = new ArtifactAppDeployer();
+            deployer.setRenderableCreator(new HbsRenderableCreator());
+            us.setUUFAppRegistry(deployer);
+            try {
+                File file = new File("org.wso2.carbon.uuf.sample.pets-store-1.0.0-SNAPSHOT.zip");
+                //System.out.print("file exists: " + file.exists() + " path: " + file.getAbsolutePath());
+                deployer.deploy(new Artifact(file));
+                deployer.getApp("/pets-store");
+            } catch (CarbonDeploymentException e) {
+                e.printStackTrace();
+            }*/
+        }
+
+        @TearDown(Level.Trial)
+        public void doTearDown() {
+            connector.setServerConnection(null);
+        }
+
     }
 
-
-    @Benchmark
+    /*
+    * Mode.Throughput: Measures the number of operations per second, meaning the number of times per second your benchmark method
+    * could be executed.
+    * @OutputTimeUnit: actual time unit to use
+    * */
+    @Benchmark @BenchmarkMode(Mode.Throughput) @OutputTimeUnit(TimeUnit.SECONDS)
     public void testMethod(httpRequestState rs) {
-        rs.us.serve(genHttpRequest(),genHttpResponse());
+        HttpRequest request = genHttpRequest();
+        HttpResponse response = genHttpResponse();
+
+        //HttpResponse res =  rs.serverConnection.serve(request, response);
+       // System.out.println(res.getContent().toString());
     }
 
-
-    public HttpRequest genHttpRequest(){
+    // Generate HTTP Request
+    public static HttpRequest genHttpRequest(){
         return new HttpRequest() {
             @Override
             public String getUrl() {
-                return null;
+                return "http://localhost:9090/pets-store/";
             }
 
             @Override
             public String getMethod() {
-                return null;
+                return "GET";
             }
 
             @Override
             public String getProtocol() {
-                return null;
+                return "HTTP/1.1";
             }
 
             @Override
@@ -67,7 +137,7 @@ public class HttpRequestBenchmark {
 
             @Override
             public String getHostName() {
-                return null;
+                return "localhost:9090";
             }
 
             @Override
@@ -77,17 +147,17 @@ public class HttpRequestBenchmark {
 
             @Override
             public String getUri() {
-                return null;
+                return "/pets-store/";
             }
 
             @Override
             public String getContextPath() {
-                return null;
+                return "/pets-store";
             }
 
             @Override
             public String getUriWithoutContextPath() {
-                return null;
+                return "/";
             }
 
             @Override
@@ -137,7 +207,8 @@ public class HttpRequestBenchmark {
         };
     }
 
-    public HttpResponse genHttpResponse(){
+    // Generate HTTP Response
+    public static HttpResponse genHttpResponse(){
         return new HttpResponse() {
             @Override
             public void setStatus(int statusCode) {
